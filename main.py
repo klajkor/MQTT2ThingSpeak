@@ -26,9 +26,9 @@ def connect_mqtt() -> mqtt_client:
             print("Failed to connect, return code %d\n", rc)
 
     client = mqtt_client.Client(client_id)
-    client.username_pw_set(secrets.USERNAME, secrets.PASSWORD)
+    client.username_pw_set(secrets.MQTT_USERNAME, secrets.MQTT_PASSWORD)
     client.on_connect = on_connect
-    client.connect(secrets.BROKER, secrets.PORT)
+    client.connect(secrets.MQTT_BROKER, secrets.MQTT_PORT)
     return client
 
 
@@ -37,7 +37,7 @@ def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg):
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
 
-    client.subscribe(secrets.TOPIC_SENSOR)
+    client.subscribe(secrets.MQTT_TOPIC_SENSOR)
     client.on_message = on_message
 
 
