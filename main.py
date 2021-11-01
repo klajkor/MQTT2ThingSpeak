@@ -32,7 +32,7 @@ def connect_mqtt() -> mqtt_client:
     return client
 
 
-def subscribe(client: mqtt_client):
+def subscribe_sensor(client: mqtt_client):
     """ Subscribe to MQTT topic """
     def on_message(client, userdata, msg):
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
@@ -41,10 +41,20 @@ def subscribe(client: mqtt_client):
     client.on_message = on_message
 
 
+def subscribe_state(client: mqtt_client):
+    """ Subscribe to MQTT topic """
+    def on_message(client, userdata, msg):
+        print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
+
+    client.subscribe(secrets.MQTT_TOPIC_STATE)
+    client.on_message = on_message
+
+
 def run():
     """ Run MQTT connect """
     client = connect_mqtt()
-    subscribe(client)
+    subscribe_sensor(client)
+    subscribe_state(client)
     client.loop_forever()
 
 
