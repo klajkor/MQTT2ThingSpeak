@@ -31,22 +31,35 @@ def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, return_code):
         """ on_connect callback """
         if return_code == 0:
-            print("Connected to MQTT Broker!")
+            print("Connected to MQTT Broker, started to subscribe.")
+            subscribe_tele_root(client)
         else:
-            print("Failed to connect, return code %d\n", return_code)
+            print(">>FAILED to connect, return code %d\n", return_code)
+
+    def on_disconnect(client, userdata, return_code):
+        """ on_disconnect callback """
+        if return_code != 0:
+            print(">>UNEXPECTED disconnection.")
+        else:
+            print(">>Normal disconnection.")
 
     client = mqtt_client.Client(client_id)
     client.username_pw_set(secrets.MQTT_USERNAME, secrets.MQTT_PASSWORD)
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.connect(secrets.MQTT_BROKER, secrets.MQTT_PORT)
     return client
 
 
 def subscribe_tele_root(client_sensor: mqtt_client):
     """ Subscribe to 'tele root' and additional MQTT sub-topics """
-    client_sensor.subscribe(secrets.MQTT_TOPIC_TELE_ROOT)
-    client_sensor.on_message = on_message_tele_root
-    client_sensor.message_callback_add(secrets.MQTT_TOPIC_SENSOR, on_message_tele_sensor)
+    (result, mid) = client_sensor.subscribe(secrets.MQTT_TOPIC_TELE_ROOT)
+    if result == mqtt_client.MQTT_ERR_SUCCESS:
+        print(f"Subscribed to: '{secrets.MQTT_TOPIC_TELE_ROOT}'")
+        client_sensor.on_message = on_message_tele_root
+        client_sensor.message_callback_add(secrets.MQTT_TOPIC_SENSOR, on_message_tele_sensor)
+    else:
+        print(f">>FAILED to subscribe to: '{secrets.MQTT_TOPIC_TELE_ROOT}'")
 
 
 def on_message_tele_root(client_sensor, userdata, msg):
@@ -81,7 +94,6 @@ def on_message_tele_sensor(client_sensor, userdata, msg):
 def run(ts_channel_run: thingspeak.Channel):
     """ Run MQTT connect """
     client = connect_mqtt()
-    subscribe_tele_root(client)
     client.loop_forever()
 
 
