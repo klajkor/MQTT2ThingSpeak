@@ -5,6 +5,8 @@ Converting MQTT messages and sending them to ThingSpeak
 """
 
 import secrets
+import logging
+import sys
 import random
 import json
 import time
@@ -36,7 +38,7 @@ def send_to_thingspeak(ts_queue):
     """
     while True:
         q_ts_payload = ts_queue.get()
-        console_log(f"Sending payload from queue to TS: {q_ts_payload}")
+        logging.info("Sending payload from queue to TS: '%s'", q_ts_payload)
         THINGSPEAK_CHANNEL.update(q_ts_payload)
         time.sleep(15)
         ts_queue.task_done()
@@ -48,19 +50,19 @@ def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, return_code):
         """ on_connect callback """
         if return_code == 0:
-            console_log("Connected to MQTT Broker, started to subscribe.")
+            logging.info("Connected to MQTT Broker, started to subscribe.")
             subscribe_tele_root(client)
         else:
-            console_log(f">>FAILED to connect, return code:{return_code}\n")
+            logging.error(">>FAILED to connect, return code:%d\n", return_code)
 
     def on_disconnect(client, userdata, return_code):
         """ on_disconnect callback """
         if return_code != 0:
-            console_log(">> UNEXPECTED disconnection, return code:{return_code}\n")
+            logging.info(">> UNEXPECTED disconnection, return code:{return_code}\n")
         else:
-            console_log(">> Normal disconnection.")
+            logging.warning(">> Normal disconnection.")
 
-    console_log(f"Starting MQTT connection to {secrets.MQTT_BROKER}")
+    logging.info("Starting MQTT connection to %s", secrets.MQTT_BROKER)
     client = mqtt_client.Client(client_id)
     client.username_pw_set(secrets.MQTT_USERNAME, secrets.MQTT_PASSWORD)
     client.on_connect = on_connect
@@ -73,11 +75,11 @@ def subscribe_tele_root(client_sensor: mqtt_client):
     """ Subscribe to 'tele root' and additional MQTT sub-topics """
     (result, mid) = client_sensor.subscribe(secrets.MQTT_TOPIC_TELE_ROOT)
     if result == mqtt_client.MQTT_ERR_SUCCESS:
-        console_log(f"Subscribed to: '{secrets.MQTT_TOPIC_TELE_ROOT}'")
+        logging.info("Subscribed to: '%s'", secrets.MQTT_TOPIC_TELE_ROOT)
         client_sensor.on_message = on_message_tele_root
         client_sensor.message_callback_add(secrets.MQTT_TOPIC_SENSOR, on_message_tele_sensor)
     else:
-        console_log(f">> FAILED to subscribe to: '{secrets.MQTT_TOPIC_TELE_ROOT}'")
+        logging.error(">> FAILED to subscribe to: '%s'", secrets.MQTT_TOPIC_TELE_ROOT)
 
 
 def on_message_tele_root(client_sensor, userdata, msg):
@@ -99,12 +101,12 @@ def on_message_tele_sensor(client_sensor, userdata, msg):
             json_subtopic = field_map['json_subtopic']
             if json_subtopic in topic_json_message:
                 subtopic_value = topic_json_message[json_subtopic]
-                console_log(f"'{json_subtopic}': '{subtopic_value}'")
+                logging.info("'%s': '%d'", json_subtopic, subtopic_value)
                 ts_field = field_map['ts_field']
                 ts_payload[ts_field] = subtopic_value
 
     if len(ts_payload) > 0:
-        console_log(f"Adding TS payload to queue: '{ts_payload}'")
+        logging.info("Adding TS payload to queue: '%s'", ts_payload)
         thingspeak_queue.put(ts_payload)
 
 
@@ -120,7 +122,21 @@ def console_log(log_message):
     print(f"{time_now_str} {log_message}")
 
 
+def setup_logging():
+    """ Setup logging to file and console """
+    logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt = "%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("log_file.txt"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+
 if __name__ == '__main__':
+    setup_logging()
     # Init worker thread of sending to ThingSpeak queue
     worker = Thread(target=send_to_thingspeak, args=(thingspeak_queue,))
     worker.setDaemon(True)
