@@ -116,12 +116,6 @@ def run(ts_channel_run: thingspeak.Channel):
     client.loop_forever()
 
 
-def console_log(log_message):
-    """ Logging to console with timestamp """
-    time_now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"{time_now_str} {log_message}")
-
-
 def setup_logging():
     """ Setup logging to file and console """
     logging.basicConfig(
