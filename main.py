@@ -9,8 +9,10 @@ import random
 import json
 import time
 import datetime
-import thingspeak
+from queue import Queue
+from threading import Thread
 from paho.mqtt import client as mqtt_client
+import thingspeak
 
 
 # generate client ID with pub prefix randomly
@@ -24,6 +26,20 @@ FIELD_MAPPER_LIST = [
     {"json_topic":"PIR1", "json_subtopic":"StatusNum", "ts_field":"field4"},
     {"json_topic":"BH1750", "json_subtopic":"LightAlarmStatusNum", "ts_field":"field5"}
 ]
+
+thingspeak_queue = Queue()
+
+def send_to_thingspeak(ts_queue):
+    """This is the worker thread function. It processes items in the queue one after
+    another.  These daemon thread go into an infinite loop, and only exit when
+    the main thread ends.
+    """
+    while True:
+        q_ts_payload = ts_queue.get()
+        console_log(f"Sending payload from queue to TS: {q_ts_payload}")
+        THINGSPEAK_CHANNEL.update(q_ts_payload)
+        time.sleep(15)
+        ts_queue.task_done()
 
 
 def connect_mqtt() -> mqtt_client:
@@ -66,7 +82,7 @@ def subscribe_tele_root(client_sensor: mqtt_client):
 
 def on_message_tele_root(client_sensor, userdata, msg):
     """ On message callback for general messages not handled by topic specific callbacks
-    Currently do nothing """
+    Currently does nothing """
 
 
 def on_message_tele_sensor(client_sensor, userdata, msg):
@@ -88,9 +104,8 @@ def on_message_tele_sensor(client_sensor, userdata, msg):
                 ts_payload[ts_field] = subtopic_value
 
     if len(ts_payload) > 0:
-        console_log(f"TS payload: '{ts_payload}'")
-        time.sleep(15)
-        THINGSPEAK_CHANNEL.update(ts_payload)
+        console_log(f"Adding TS payload to queue: '{ts_payload}'")
+        thingspeak_queue.put(ts_payload)
 
 
 def run(ts_channel_run: thingspeak.Channel):
@@ -106,6 +121,10 @@ def console_log(log_message):
 
 
 if __name__ == '__main__':
+    # Init worker thread of sending to ThingSpeak queue
+    worker = Thread(target=send_to_thingspeak, args=(thingspeak_queue,))
+    worker.setDaemon(True)
+    worker.start()
     THINGSPEAK_CHANNEL = thingspeak.Channel(id = secrets.THINGSPEAK_CHANNEL_ID,
         api_key = secrets.THINGSPEAK_API_KEY)
     run(THINGSPEAK_CHANNEL)
